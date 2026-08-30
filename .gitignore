@@ -1,0 +1,8 @@
+build/
+*.elf
+*.wps
+*.map
+*.lst
+*.o
+*.d
+
