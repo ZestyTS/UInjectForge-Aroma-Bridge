@@ -5,4 +5,10 @@ build/
 *.lst
 *.o
 *.d
+.DS_Store
+*-source.zip
+BUILD-COMMIT.txt
+BUILD-TOOLCHAIN.json
+BUILD-INFO.json
+SHA256SUMS.txt
 

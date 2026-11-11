@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "date": "2026-11-10",
+  "platform": "macOS arm64",
+  "compiler": "Apple clang 21.0.0 (clang-2100.3.34.2)",
+  "command": "sh tests/run-host.sh",
+  "nativeFingerprint": "c7fb79bdbb79686f1a38b069af9e90a335b58cd12fa8e584eece253c65f43c0b",
+  "exitCode": 0,
+  "elapsedSeconds": 6.071,
+  "compileAndRunHarnesses": 8,
+  "exhaustiveDigitalMasks": 65536,
+  "namedMenuTransactionCases": 22,
+  "flags": ["-Wall", "-Wextra", "-Werror", "-UNDEBUG", "-fsanitize=address,undefined"],
+  "sourceUnchangedDuringRun": true,
+  "ownedProcessGroupGone": true,
+  "temporaryEntriesRemaining": 0,
+  "logSha256": "b96474f577961c37db6be79817b8be4c7d69f562ca9f469efb9d310965f23ed4",
+  "nativeWpsBuilt": false,
+  "consoleContacted": false,
+  "scope": "Eight host harnesses, not eight total assertions or a Wii U hardware acceptance result."
+}

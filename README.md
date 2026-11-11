@@ -1,64 +1,41 @@
 # UInjectForge Aroma Bridge
 
-`UInjectForge Aroma Bridge` is a lightweight Aroma/WUPS plugin for Wii U.
-
-The bridge does not transfer or install files. It gives UInjectForge a low-risk way to confirm that the Wii U is reachable while Aroma is running, and it reports a small read-only setup checklist so testers can see whether the obvious console-side pieces are present. Transfers still use one of these paths:
-
-- UInjectForge Assistant WUHB
-- FTPiiU / FTPiiU Everywhere compatible FTP transfer
-- direct SD copy
+Aroma Bridge is an optional Wii U plugin for discovery, SD setup status and per-title digital GamePad button remapping in native Wii U applications. Assistant is a separate application for transfers and installation. The Bridge does not transfer files, install titles or edit installed games.
 
 ## Install
 
-Copy the packaged `sd` folder to the root of the Wii U SD card.
-
-Expected path:
+Download a package from [Bridge releases](https://github.com/ZestyTS/UInjectForge-Aroma-Bridge/releases). Copy the contents of its `sd` folder to your Wii U SD card:
 
 ```text
 sd:/wiiu/environments/aroma/plugins/uinjectforge-aroma-bridge.wps
 ```
 
-Restart Aroma or reload plugins after copying.
+Restart Aroma after replacing the plugin and check its active version/build ID in Diagnostics. Copying a file or reopening the menu does not prove that a replacement binary is running. Preserve existing plugin settings. Use a trusted local network; do not forward discovery or Assistant ports to the Internet.
 
-## Discovery
+## Discovery and setup status
 
-The bridge listens for UIF discovery probes on UDP port `8574` by default. UIF Desktop scans the normal Assistant port first and then the bridge port, so the existing **Find Wii U** action can report whether the bridge is alive.
+The Bridge answers UIF discovery on UDP `8574`. UIF can fill the discovered Wii U address into its Assistant and FTP fields. Transfers still use Assistant on `8573`, an FTPiiU-compatible server or direct SD copy. Bridge discovery uses a different port so it can coexist with Assistant.
 
-When UIF finds the bridge, it can fill the Wii U IP into the FTP and Assistant host fields. It still leaves actual transfers to the Assistant app on `8573`, FTPiiU-compatible FTP on `21`, or direct SD copy.
+Open Aroma's plugin configuration and select **UInjectForge Bridge**:
 
-The bridge intentionally uses a different port from the Assistant app so it does not block the Assistant receiver from binding UDP `8573`.
+- The main menu contains Discovery and connection status.
+- Advanced network settings contains the UDP port and optional periodic beacons. Passive beacons default OFF.
+- Diagnostics shows the version/build and cached SD setup status. An unfinished scan says Checking SD; unknown free space is not zero.
 
-Bridge discovery and passive beacons can include:
+Setup checks look for Assistant, Bridge, FTPiiU, runtime files and installable-package folders. You do not need every listed runtime. Presence is not proof that a game or runtime works. Replies are bounded to 1,280 bytes. Detailed status and send diagnostics are written, when possible, to `sd:/uinjectforge/aroma-bridge/status.json`. Discovery does not upload this information to a developer service.
 
-- component version, source build ID, and supported capability list
-- SD accessibility and free space
-- Assistant app presence under `sd:/wiiu/apps/uinjectforge-assistant/`
-- Aroma Bridge plugin presence under `sd:/wiiu/environments/aroma/plugins/`
-- FTPiiU-compatible plugin presence under `sd:/wiiu/environments/aroma/plugins/`
-- Nintendont presence under `sd:/apps/nintendont/` or `sd:/apps/Nintendont/`
-- NooDS and PPSSPP runtime/assets readiness
-- WiiStation, Not64 (including adjacent `data.iso`), and Genesis Plus GX vWii preset readiness
-- controller INI and Loadiine folder presence
-- valid versus incomplete package-folder counts under `sd:/install/`, bounded to 512 folders
+## GamePad buttons for the current title
 
-The beacon keeps the older flat readiness fields and also includes the shared versioned `setup` object used by current UIF Desktop/mobile clients.
+In a native Wii U application, open **GamePad buttons - this title**. **Custom mapping defaults OFF.** Sixteen digital buttons can be reassigned. Every destination must appear exactly once, so swap both sides of a pair. Settings belong to the current full title ID and use the plugin's existing storage.
 
-The additive `setup` fields `wiiStationInstalled`, `not64Installed`, and `genesisPlusGxInstalled` let UIF validate guided vWii forwarder presets without requiring the SD card to be mounted on the client device. Missing fields from an older plugin are treated as unknown, not failed.
+- **Save changes** applies a valid mapping after the menu closes and input returns to neutral. This action is selected each time the menu opens.
+- **Discard changes** leaves stored and active controls unchanged.
+- **Restore standard controls** disables mapping and restores all sixteen original destinations. Turning Custom mapping OFF alone retains destinations for later reuse.
 
-The bridge also writes a best-effort status file to:
+HOME, TV, SYNC, analog axes, touch and motion remain unchanged. System menus do not apply the profile. This does not remap Wii/vWii, Wii Remote, Classic or Pro Controller input, or change general emulator settings. A native input hook is not a compatibility promise for every game or emulator.
 
-```text
-sd:/uinjectforge/aroma-bridge/status.json
-```
+Invalid or unsaved mappings retain the previous active profile. WUPS storage is shared with network settings; recovery after storage errors or power loss is not guaranteed. If a storage error appears, verify the saved settings before relying on persistence.
 
-## Aroma Settings
+## Build and validation
 
-Open Aroma's plugin configuration and choose `UInjectForge Bridge`.
-
-Options:
-
-- `Enable bridge discovery`
-- `Discovery UDP port`
-- `Passive discovery beacon`
-
-Passive beacons are off by default. Active discovery replies are enough for normal UIF Desktop/mobile discovery and are less noisy on tester networks.
+See [BUILDING.md](BUILDING.md) for the pinned recipe and corresponding source, [VALIDATION.md](VALIDATION.md) for recorded observations and remaining checks, and [WUPS-SOURCE.md](WUPS-SOURCE.md) for relinking with modified WUPS. Original Bridge code is MIT licensed; WUPS and wut retain their separate terms in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and `licenses/`.
