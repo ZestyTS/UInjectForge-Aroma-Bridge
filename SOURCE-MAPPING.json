@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "publicBaseCommit": "5c7412242964cdc181629b8e1cbf0d4881b0cbb5",
+  "uifCommit": "3e975c35427a14c460e34a9b9eafec28c54c993c",
+  "nativeFingerprint": "c7fb79bdbb79686f1a38b069af9e90a335b58cd12fa8e584eece253c65f43c0b",
+  "files": [
+    {
+      "path": "Dockerfile",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/Dockerfile",
+      "bytes": 336,
+      "sha256": "18a02e78fe185f768f77ecd2612bd5e49fa1e37b64fd71f3b0f7073ab77ac7f8"
+    },
+    {
+      "path": "LICENSE",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/LICENSE",
+      "bytes": 1064,
+      "sha256": "fd80e83d416a812558c03df3b8a3453ee0286ec0ae04e7f0a69e96d093c8cd3b"
+    },
+    {
+      "path": "Makefile",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/Makefile",
+      "bytes": 2516,
+      "sha256": "d713c43fa4af59391c70df65972bafa7549d2b0f490eef2bd0ef23a5748deac5"
+    },
+    {
+      "path": "THIRD-PARTY-NOTICES.md",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/THIRD-PARTY-NOTICES.md",
+      "bytes": 891,
+      "sha256": "d06e6f260017288483ee15eb5efd3b640f9eb6fcaf518fc24dd02d3740c087e5"
+    },
+    {
+      "path": "WUPS-SOURCE.md",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/WUPS-SOURCE.md",
+      "bytes": 1351,
+      "sha256": "df3634c4a0ae6b3756f30e2ecfb485f46999dfe51c36f583f0532318349c8500"
+    },
+    {
+      "path": "include/gamepad_controls.h",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/include/gamepad_controls.h",
+      "bytes": 208,
+      "sha256": "3f3c9a090cb29455cea32b83f0ce2b1ddebc0499a166619c72d6f4c451b02162"
+    },
+    {
+      "path": "include/gamepad_profile.h",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/include/gamepad_profile.h",
+      "bytes": 3780,
+      "sha256": "ff13afc98293aadb266269b6191c52b73acb8b8e287cf0bf45d95115657f45a0"
+    },
+    {
+      "path": "include/readiness_cache.h",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/include/readiness_cache.h",
+      "bytes": 1150,
+      "sha256": "be4afb5ac6bcd9bc8501da76bd8e5af599cc43def54400cf59adbe1599ef7b6d"
+    },
+    {
+      "path": "licenses/GPL-3.0.txt",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/licenses/GPL-3.0.txt",
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "path": "licenses/WUPS.txt",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/licenses/WUPS.txt",
+      "bytes": 7621,
+      "sha256": "c972628a8d4cb260564d0bb31d6ced8b46266f73fee59f53236a1dfc50c8a5b5"
+    },
+    {
+      "path": "licenses/wut.txt",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/licenses/wut.txt",
+      "bytes": 868,
+      "sha256": "61b4a8df7082243224f15eb3d7f799aa0c71d774de6d7db879a43cef4e579d64"
+    },
+    {
+      "path": "source/gamepad_controls.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/source/gamepad_controls.cpp",
+      "bytes": 10257,
+      "sha256": "efb56979748ff52e2e1e7c0cbe265392b14fab296365273d4b56bea1077baaaf"
+    },
+    {
+      "path": "source/main.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/source/main.cpp",
+      "bytes": 34266,
+      "sha256": "c05d477caf23856e065312b6485118f4c758def71b77670f8547363a5b5745cd"
+    },
+    {
+      "path": "tests/config_menu_tests.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/config_menu_tests.cpp",
+      "bytes": 3652,
+      "sha256": "1a66b75abd8f680d3dd78b7a6853e8e77c3efdbfa02dc55cfc2f05297c620799"
+    },
+    {
+      "path": "tests/discovery_payload_tests.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/discovery_payload_tests.cpp",
+      "bytes": 2246,
+      "sha256": "cbb1e06ded85dbd6ceefbef025e7c187cf4771199ecf8ce6565eee50e953fe03"
+    },
+    {
+      "path": "tests/discovery_send_tests.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/discovery_send_tests.cpp",
+      "bytes": 2258,
+      "sha256": "b6c97fd8cedfed2a41106f15a6da1568763e28d7b8e5b78a4c86397c694a6e4b"
+    },
+    {
+      "path": "tests/gamepad_handler_tests.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/gamepad_handler_tests.cpp",
+      "bytes": 4671,
+      "sha256": "c1cd1aad1c353b3c9519446dcf617be60835ab3fc0753c51ac8283d826e799a0"
+    },
+    {
+      "path": "tests/gamepad_menu_transaction_tests.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/gamepad_menu_transaction_tests.cpp",
+      "bytes": 9767,
+      "sha256": "0d063cc6626cafcb5c53cbf1c311e66fe70112832d87e00f49543c0bf2b9ec95"
+    },
+    {
+      "path": "tests/gamepad_profile_tests.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/gamepad_profile_tests.cpp",
+      "bytes": 3620,
+      "sha256": "1a03e775c97616e7f0d0b9d0135cd96dfa5bed9f3827d7eb85cf4db9c32b6420"
+    },
+    {
+      "path": "tests/gamepad_sdk_stubs.h",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/gamepad_sdk_stubs.h",
+      "bytes": 4089,
+      "sha256": "94a0d8512ad5bd3e9f2a1d027adbfba832fc8f4991805393eda336f54415224f"
+    },
+    {
+      "path": "tests/readiness_cache_tests.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/readiness_cache_tests.cpp",
+      "bytes": 1223,
+      "sha256": "3f9140288b6cae75ce2a3f7bab28dae24a58f1101ce1d111198df7d5aceef5ad"
+    },
+    {
+      "path": "tests/readiness_report_tests.cpp",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/readiness_report_tests.cpp",
+      "bytes": 1098,
+      "sha256": "a90136089ee53134b47a7d8f807c8fe9793ea324ef6c17a904f9d5f7d7211612"
+    },
+    {
+      "path": "tests/run-host.sh",
+      "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/run-host.sh",
+      "bytes": 3389,
+      "sha256": "68829b513c692268990241694e3136b95b3401587fb053385728f891126130c9"
+    }
+  ]
+}

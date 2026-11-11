@@ -8,6 +8,8 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include "readiness_cache.h"
+#include "gamepad_controls.h"
 
 #include <arpa/inet.h>
 #include <coreinit/debug.h>
@@ -45,6 +47,7 @@ WUPS_PLUGIN_VERSION(UIF_COMPONENT_VERSION);
 WUPS_PLUGIN_AUTHOR("ZestyTS");
 WUPS_PLUGIN_LICENSE("MIT");
 
+WUPS_USE_WUT_DEVOPTAB();
 WUPS_USE_STORAGE("uinjectforge-aroma-bridge");
 
 static constexpr int32_t kDefaultBridgePort = 8574;
@@ -55,6 +58,8 @@ static constexpr int32_t kMaxPort = 65535;
 static constexpr int32_t kMaxSetupPackages = 512;
 static constexpr uint32_t kReadinessRefreshIntervalMs = 5U * 60U * 1000U;
 static constexpr uint32_t kStatusWriteIntervalTicks = 3000U;
+static constexpr size_t kMaxDiscoveryPayloadBytes = 1280;
+static_assert(kMaxDiscoveryPayloadBytes + 20 + 8 <= 1500, "Discovery must fit a normal IPv4 Ethernet packet.");
 static constexpr const char *kSdRoot = "fs:/vol/external01";
 static constexpr const char *kStatusDirectory = "fs:/vol/external01/uinjectforge/aroma-bridge";
 static constexpr const char *kStatusPath = "fs:/vol/external01/uinjectforge/aroma-bridge/status.json";
@@ -90,6 +95,7 @@ static constexpr const char *kPpssppRequiredAssetPaths[] = {
     "shaders/defaultshaders.ini",
 };
 static std::atomic<bool> sEnabled{true};
+static bool sInitialized = false;
 static std::atomic<bool> sPassiveBeacon{false};
 static std::atomic<bool> sRunning{false};
 static std::atomic<bool> sSocketReady{false};
@@ -97,13 +103,16 @@ static std::atomic<int32_t> sBridgePort{kDefaultBridgePort};
 static std::atomic<uint32_t> sProbeCount{0};
 static std::atomic<uint32_t> sReplyCount{0};
 static std::atomic<uint32_t> sBeaconCount{0};
+static std::atomic<uint32_t> sSendFailureCount{0};
+static std::atomic<int32_t> sLastSendError{0};
+static std::atomic<uint32_t> sLastSendBytes{0};
 static std::thread sWorker;
 static std::mutex sStateMutex;
-static std::mutex sReadinessMutex;
 static std::mutex sStatusMutex;
 static std::string sLastPeer = "none";
 
 struct BridgeReadiness {
+    bool checked = false;
     bool sdAccessible = false;
     bool sdSpaceKnown = false;
     long long sdFreeBytes = 0;
@@ -125,9 +134,7 @@ struct BridgeReadiness {
     bool installScanTruncated = false;
 };
 
-static BridgeReadiness sCachedReadiness{};
-static bool sCachedReadinessValid = false;
-static uint64_t sCachedReadinessTicks = 0;
+static ReadinessCache<BridgeReadiness> sReadinessCache;
 static std::string sLastStatusContent;
 
 static void set_last_peer(const char *peer) {
@@ -159,6 +166,7 @@ static std::string ip_address_string() {
 }
 
 static bool file_exists(const char *path) {
+    if (!sRunning.load() || !sEnabled.load()) return false;
     FILE *file = std::fopen(path, "rb");
     if (!file) {
         return false;
@@ -180,6 +188,7 @@ static bool ppsspp_assets_complete(const char *assetsRoot) {
     return true;
 }
 static bool directory_exists(const char *path) {
+    if (!sRunning.load() || !sEnabled.load()) return false;
     DIR *dir = opendir(path);
     if (!dir) {
         return false;
@@ -212,6 +221,7 @@ static bool ends_with_ignore_case(const char *value, const char *suffix) {
 }
 
 static int count_files_with_suffix(const char *path, const char *suffix) {
+    if (!sRunning.load() || !sEnabled.load()) return 0;
     DIR *dir = opendir(path);
     if (!dir) {
         return 0;
@@ -219,9 +229,10 @@ static int count_files_with_suffix(const char *path, const char *suffix) {
 
     int count = 0;
     struct dirent *entry = nullptr;
-    while ((entry = readdir(dir)) != nullptr) {
+    while (sRunning.load() && sEnabled.load() && (entry = readdir(dir)) != nullptr) {
         if (entry->d_name[0] != '.' && ends_with_ignore_case(entry->d_name, suffix)) {
             count++;
+            break;
         }
     }
 
@@ -234,6 +245,7 @@ static bool directory_has_ini(const char *path) {
 }
 
 static void inspect_install_packages(BridgeReadiness &result) {
+    if (!sRunning.load() || !sEnabled.load()) return;
     constexpr const char *installRoot = "fs:/vol/external01/install";
     DIR *dir = opendir(installRoot);
     if (!dir) {
@@ -243,7 +255,7 @@ static void inspect_install_packages(BridgeReadiness &result) {
     result.installFolderPresent = true;
     int inspected = 0;
     struct dirent *entry = nullptr;
-    while ((entry = readdir(dir)) != nullptr) {
+    while (sRunning.load() && sEnabled.load() && (entry = readdir(dir)) != nullptr) {
         if (entry->d_name[0] == '.') {
             continue;
         }
@@ -282,6 +294,7 @@ static void inspect_install_packages(BridgeReadiness &result) {
 
 static BridgeReadiness inspect_readiness() {
     BridgeReadiness result{};
+    result.checked = true;
     result.sdAccessible = directory_exists(kSdRoot);
     if (!result.sdAccessible) {
         return result;
@@ -331,7 +344,7 @@ static BridgeReadiness inspect_readiness() {
     result.loadiineFolderPresent = directory_exists("fs:/vol/external01/wiiu/games");
 
     struct statvfs spaceInfo {};
-    if (statvfs(kSdRoot, &spaceInfo) == 0) {
+    if (sRunning.load() && sEnabled.load() && statvfs(kSdRoot, &spaceInfo) == 0) {
         result.sdSpaceKnown = true;
         result.sdFreeBytes = static_cast<long long>(spaceInfo.f_bavail) * static_cast<long long>(spaceInfo.f_frsize);
     }
@@ -340,20 +353,19 @@ static BridgeReadiness inspect_readiness() {
     return result;
 }
 
-static BridgeReadiness readiness_snapshot(bool forceRefresh) {
-    std::lock_guard<std::mutex> guard(sReadinessMutex);
-    const auto now = OSGetTime();
-    const auto refreshInterval = OSMillisecondsToTicks(kReadinessRefreshIntervalMs);
-    if (!sCachedReadinessValid || forceRefresh || now - sCachedReadinessTicks >= refreshInterval) {
-        sCachedReadiness = inspect_readiness();
-        sCachedReadinessTicks = now;
-        sCachedReadinessValid = true;
-    }
+static BridgeReadiness readiness_snapshot(bool requestRefresh) {
+    if (requestRefresh) sReadinessCache.request_refresh();
+    return sReadinessCache.snapshot();
+}
 
-    return sCachedReadiness;
+static bool refresh_readiness_on_worker() {
+    return sReadinessCache.refresh(OSGetTime(), OSMillisecondsToTicks(10000),
+        OSMillisecondsToTicks(kReadinessRefreshIntervalMs), inspect_readiness,
+        [] { return !sRunning.load() || !sEnabled.load(); });
 }
 
 static std::string readiness_summary(const BridgeReadiness &readiness) {
+    if (!readiness.checked) return "Checking SD...";
     if (!readiness.sdAccessible) {
         return "SD not accessible";
     }
@@ -374,6 +386,8 @@ static std::string readiness_summary(const BridgeReadiness &readiness) {
 }
 
 static std::string readiness_json(const BridgeReadiness &readiness, const std::string &summary) {
+    if (!readiness.checked)
+        return "{\"schemaVersion\":1,\"summary\":\"Checking SD...\"}";
     char buffer[2048];
     std::snprintf(
         buffer,
@@ -409,11 +423,11 @@ static std::string readiness_json(const BridgeReadiness &readiness, const std::s
 }
 
 static std::string build_beacon_json(const BridgeReadiness &readiness) {
-    char buffer[4096];
-    const auto peer = last_peer();
-    const auto setupSummary = readiness_summary(readiness);
+    char buffer[kMaxDiscoveryPayloadBytes + 1];
+    // Keep diagnostics and the detailed summary in the SD report, not duplicate UDP fields.
+    const std::string setupSummary = !readiness.checked ? "Checking SD..." : readiness.sdAccessible ? "SD ready" : "SD not accessible";
     const auto setupJson = readiness_json(readiness, setupSummary);
-    std::snprintf(buffer,
+    const auto length = std::snprintf(buffer,
                   sizeof(buffer),
                   "{\"type\":\"%s\",\"deviceName\":\"%s\",\"protocolVersion\":\"%s\","
                   "\"componentVersion\":\"" UIF_COMPONENT_VERSION "\",\"buildId\":\"" UIF_COMPONENT_BUILD_ID "\","
@@ -425,10 +439,7 @@ static std::string build_beacon_json(const BridgeReadiness &readiness) {
                   "\"sdAccessible\":%s,\"assistantInstalled\":%s,"
                   "\"aromaBridgeInstalled\":%s,\"ftpPluginInstalled\":%s,"
                   "\"nintendontInstalled\":%s,\"installPackageCount\":%d,"
-                  "\"statusFilePath\":\"%s\",\"setupSummary\":\"%s\","
-                  "\"setup\":%s,"
-                  "\"probeCount\":%u,\"replyCount\":%u,\"beaconCount\":%u,"
-                  "\"lastDiscoveryPeer\":\"%s\"}",
+                  "\"statusFilePath\":\"%s\",\"setup\":%s}",
                   BRIDGE_TYPE,
                   BRIDGE_DEVICE_NAME,
                   BRIDGE_PROTOCOL,
@@ -439,19 +450,15 @@ static std::string build_beacon_json(const BridgeReadiness &readiness) {
                   sPassiveBeacon.load() ? "true" : "false",
                   static_cast<int>(sBridgePort.load()),
                   sSocketReady.load() ? "true" : "false",
-                  readiness.sdAccessible ? "true" : "false",
-                  readiness.assistantInstalled ? "true" : "false",
-                  readiness.aromaBridgeInstalled ? "true" : "false",
-                  readiness.ftpPluginInstalled ? "true" : "false",
-                  readiness.nintendontInstalled ? "true" : "false",
+                  !readiness.checked ? "null" : readiness.sdAccessible ? "true" : "false",
+                  !readiness.checked ? "null" : readiness.assistantInstalled ? "true" : "false",
+                  !readiness.checked ? "null" : readiness.aromaBridgeInstalled ? "true" : "false",
+                  !readiness.checked ? "null" : readiness.ftpPluginInstalled ? "true" : "false",
+                  !readiness.checked ? "null" : readiness.nintendontInstalled ? "true" : "false",
                   readiness.validInstallPackages,
                   kStatusPath,
-                  setupSummary.c_str(),
-                  setupJson.c_str(),
-                  static_cast<unsigned>(sProbeCount.load()),
-                  static_cast<unsigned>(sReplyCount.load()),
-                  static_cast<unsigned>(sBeaconCount.load()),
-                  peer.c_str());
+                  setupJson.c_str());
+    if (length < 0 || static_cast<size_t>(length) > kMaxDiscoveryPayloadBytes) return {};
     return buffer;
 }
 
@@ -493,6 +500,9 @@ static std::string build_status_json(const BridgeReadiness &readiness) {
                   "  \"probeCount\": %u,\n"
                   "  \"replyCount\": %u,\n"
                   "  \"beaconCount\": %u,\n"
+                  "  \"discoverySendFailures\": %u,\n"
+                  "  \"lastDiscoverySendError\": %d,\n"
+                  "  \"lastDiscoveryPayloadBytes\": %u,\n"
                   "  \"lastDiscoveryPeer\": \"%s\",\n"
                   "  \"setupSummary\": \"%s\",\n"
                   "  \"setup\": %s\n"
@@ -523,6 +533,9 @@ static std::string build_status_json(const BridgeReadiness &readiness) {
                   static_cast<unsigned>(sProbeCount.load()),
                   static_cast<unsigned>(sReplyCount.load()),
                   static_cast<unsigned>(sBeaconCount.load()),
+                  static_cast<unsigned>(sSendFailureCount.load()),
+                  static_cast<int>(sLastSendError.load()),
+                  static_cast<unsigned>(sLastSendBytes.load()),
                   last_peer().c_str(),
                   setupSummary.c_str(),
                   setupJson.c_str());
@@ -583,11 +596,26 @@ static bool is_discovery_probe(const char *message, ssize_t length) {
            view.find(BRIDGE_DISCOVERY_REQUEST) != std::string_view::npos;
 }
 
-static void send_beacon(int socketFd, const sockaddr_in &target, const BridgeReadiness &readiness) {
-    const auto json = build_beacon_json(readiness);
-    if (sendto(socketFd, json.c_str(), json.size(), 0, reinterpret_cast<const sockaddr *>(&target), sizeof(target)) >= 0) {
-        sReplyCount++;
+static void send_discovery_datagram(int socketFd, const sockaddr_in &target, const std::string &json, bool passive) {
+    sLastSendBytes = static_cast<uint32_t>(json.size());
+    if (json.empty() || json.size() > kMaxDiscoveryPayloadBytes) {
+        sLastSendError = EMSGSIZE;
+        sSendFailureCount++;
+        return;
     }
+    const auto sent = sendto(socketFd, json.c_str(), json.size(), 0, reinterpret_cast<const sockaddr *>(&target), sizeof(target));
+    if (sent != static_cast<ssize_t>(json.size())) {
+        sLastSendError = sent < 0 ? errno : EIO;
+        sSendFailureCount++;
+        return;
+    }
+    sLastSendError = 0;
+    if (passive) sBeaconCount++;
+    else sReplyCount++;
+}
+
+static void send_beacon(int socketFd, const sockaddr_in &target, const BridgeReadiness &readiness) {
+    send_discovery_datagram(socketFd, target, build_beacon_json(readiness), false);
 }
 
 static void send_passive_beacon(int socketFd) {
@@ -595,10 +623,7 @@ static void send_passive_beacon(int socketFd) {
     target.sin_family = AF_INET;
     target.sin_port = htons(static_cast<uint16_t>(sBridgePort.load()));
     target.sin_addr.s_addr = INADDR_BROADCAST;
-    const auto json = build_beacon_json(readiness_snapshot(false));
-    if (sendto(socketFd, json.c_str(), json.size(), 0, reinterpret_cast<const sockaddr *>(&target), sizeof(target)) >= 0) {
-        sBeaconCount++;
-    }
+    send_discovery_datagram(socketFd, target, build_beacon_json(readiness_snapshot(false)), true);
 }
 
 static void discovery_loop() {
@@ -614,6 +639,7 @@ static void discovery_loop() {
     uint32_t statusTicks = 0;
 
     while (sRunning.load()) {
+        if (refresh_readiness_on_worker()) write_status_file(readiness_snapshot(false));
         const auto enabled = sEnabled.load();
         const auto wantedPort = sBridgePort.load();
 
@@ -644,7 +670,14 @@ static void discovery_loop() {
             int yes = 1;
             setsockopt(socketFd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
             setsockopt(socketFd, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(yes));
-            fcntl(socketFd, F_SETFL, O_NONBLOCK);
+            const auto flags = fcntl(socketFd, F_GETFL, 0);
+            if (flags < 0 || fcntl(socketFd, F_SETFL, flags | O_NONBLOCK) < 0) {
+                OSReport("UInjectForge Bridge: could not make discovery socket nonblocking, errno %d\n", errno);
+                close(socketFd);
+                socketFd = -1;
+                OSSleepTicks(OSMillisecondsToTicks(1000));
+                continue;
+            }
 
             sockaddr_in local{};
             local.sin_family = AF_INET;
@@ -684,9 +717,9 @@ static void discovery_loop() {
                 sProbeCount++;
                 const auto readiness = readiness_snapshot(true);
                 send_beacon(socketFd, remote, readiness);
-                write_status_file(readiness);
             }
             idleTicks = 0;
+            OSSleepTicks(OSMillisecondsToTicks(100));
             continue;
         }
 
@@ -710,7 +743,7 @@ static void discovery_loop() {
 }
 
 static void restart_worker() {
-    if (sRunning.load()) {
+    if (!sInitialized || sRunning.load()) {
         return;
     }
 
@@ -753,51 +786,57 @@ static void passive_changed(ConfigItemBoolean *, bool newValue) {
 
 static WUPSConfigAPICallbackStatus config_opened(WUPSConfigCategoryHandle rootHandle) {
     WUPSConfigCategory root(rootHandle);
+    gamepad_config_opened(root);
     root.add(WUPSConfigItemBoolean::Create("enabled",
-                                           "Enable bridge discovery",
+                                           "Discovery",
                                            true,
                                            sEnabled.load(),
                                            enabled_changed));
-    root.add(WUPSConfigItemIntegerRange::Create("bridgePort",
-                                                "Discovery UDP port",
-                                                kDefaultBridgePort,
-                                                sBridgePort.load(),
-                                                kMinPort,
-                                                kMaxPort,
-                                                port_changed));
-    root.add(WUPSConfigItemBoolean::Create("passiveBeacon",
-                                           "Passive discovery beacon",
-                                           false,
-                                           sPassiveBeacon.load(),
-                                           passive_changed));
-
     char status[160];
     std::snprintf(status,
                   sizeof(status),
-                  "IP %s, UDP %d, %s",
+                  "Console %s - %s",
                   ip_address_string().c_str(),
-                  static_cast<int>(sBridgePort.load()),
-                  sSocketReady.load() ? "listening" : "not listening");
+                  !sEnabled.load() ? "discovery off" : sSocketReady.load() ? "ready" : "discovery unavailable");
     root.add(WUPSConfigItemStub::Create(status));
+    root.add(WUPSConfigItemStub::Create("Transfers and installation: Assistant app"));
+
+    auto advanced = WUPSConfigCategory::Create("Advanced network settings");
+    advanced.add(WUPSConfigItemIntegerRange::Create("bridgePort",
+                                                   "Discovery UDP port",
+                                                   kDefaultBridgePort,
+                                                   sBridgePort.load(),
+                                                   kMinPort,
+                                                   kMaxPort,
+                                                   port_changed));
+    advanced.add(WUPSConfigItemBoolean::Create("passiveBeacon",
+                                              "Periodic discovery broadcasts",
+                                              false,
+                                              sPassiveBeacon.load(),
+                                              passive_changed));
+    root.add(std::move(advanced));
+
+    auto diagnostics = WUPSConfigCategory::Create("Diagnostics");
     char component[160];
     std::snprintf(component, sizeof(component), "Version %s | Build %s", UIF_COMPONENT_VERSION, UIF_COMPONENT_BUILD_ID);
-    root.add(WUPSConfigItemStub::Create(component));
+    diagnostics.add(WUPSConfigItemStub::Create(component));
     const auto readiness = readiness_snapshot(true);
-    write_status_file(readiness);
-    root.add(WUPSConfigItemStub::Create(readiness_summary(readiness)));
-    root.add(WUPSConfigItemStub::Create("UIF fills host fields and setup status from this bridge."));
-    root.add(WUPSConfigItemStub::Create("Transfers still use Assistant 8573 or FTPiiU 21."));
+    diagnostics.add(WUPSConfigItemStub::Create(readiness_summary(readiness)));
+    root.add(std::move(diagnostics));
     return WUPSCONFIG_API_CALLBACK_RESULT_SUCCESS;
 }
 
 static void config_closed() {
+    gamepad_config_closed();
     WUPSStorageAPI::SaveStorage();
 }
 
 INITIALIZE_PLUGIN() {
     WUPSConfigAPIOptionsV1 configOptions = {.name = BRIDGE_NAME};
     if (WUPSConfigAPI_Init(configOptions, config_opened, config_closed) != WUPSCONFIG_API_RESULT_SUCCESS) {
-        OSFatal("UInjectForge Bridge: failed to initialize config API");
+        OSReport("UInjectForge Bridge: config API unavailable; bridge disabled. Update Aroma/WUPS and reload the plugin.\n");
+        sEnabled = false;
+        return;
     }
 
     bool enabled = true;
@@ -815,16 +854,20 @@ INITIALIZE_PLUGIN() {
     sPassiveBeacon = passiveBeacon;
     sBridgePort = bridgePort;
     WUPSStorageAPI::SaveStorage();
+    sInitialized = true;
 }
 
 DEINITIALIZE_PLUGIN() {
+    gamepad_application_end();
     stop_worker();
 }
 
 ON_APPLICATION_START() {
+    if (sInitialized) gamepad_application_start();
     restart_worker();
 }
 
 ON_APPLICATION_ENDS() {
+    gamepad_application_end();
     stop_worker();
 }

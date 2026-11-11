@@ -12,14 +12,23 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Host regression tests
+        run: sh tests/run-host.sh
+      - name: Native source identity
+        id: source
+        run: |
+          echo "fingerprint=$(python3 tools/source-fingerprint.py)" >> "$GITHUB_OUTPUT"
+          echo "build_id=$(python3 tools/source-fingerprint.py --build-id)" >> "$GITHUB_OUTPUT"
       - name: Build SDK image
         run: docker build -t component-builder .
       - name: Compile
-        run: docker run --rm --network none -e GITHUB_SHA -v "$PWD:/project" -w /project component-builder make -j2 UIF_COMPONENT_BUILD_ID="$GITHUB_SHA"
+        run: docker run --rm --network none -v "$PWD:/project" -w /project component-builder make -j2 UIF_COMPONENT_VERSION=1.0.6 UIF_COMPONENT_BUILD_ID="${{ steps.source.outputs.build_id }}"
       - name: Record source and toolchain
         run: |
           git rev-parse HEAD > BUILD-COMMIT.txt
           docker image inspect component-builder > BUILD-TOOLCHAIN.json
+          test "${{ steps.source.outputs.fingerprint }}" = "$(python3 tools/source-fingerprint.py)"
+          git archive --format=zip --prefix=UInjectForge-Aroma-Bridge-1.0.6-source/ --output=UInjectForge-Aroma-Bridge-1.0.6-source.zip HEAD
           sha256sum *.wps > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -30,6 +39,12 @@ jobs:
             BUILD-COMMIT.txt
             BUILD-TOOLCHAIN.json
             SHA256SUMS.txt
+            UInjectForge-Aroma-Bridge-1.0.6-source.zip
+            README.md
+            BUILDING.md
+            VALIDATION.md
+            SOURCE-MAPPING.json
+            WUPS-SOURCE.md
             LICENSE*
             THIRD-PARTY-NOTICES.md
             licenses/
