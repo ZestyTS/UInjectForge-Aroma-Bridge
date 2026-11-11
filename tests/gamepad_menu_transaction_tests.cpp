@@ -63,7 +63,7 @@ static VPADStatus read() {
 int main() {
     reset();
     auto menu = open();
-    const auto &action = item(menu, "gamepadCloseAction");
+    const auto action = item(menu, "gamepadCloseAction");
     assert(action.value == 0 && action.name == "On menu close");
     assert((action.choices == std::vector<std::string>{"Save changes", "Discard changes", "Restore standard controls"}));
     assert(item(menu, "gp.00").name == "A ->" && item(menu, "gp.15").name == "Right stick ->");

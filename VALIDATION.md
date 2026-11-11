@@ -10,6 +10,15 @@ transaction cases. Source bookends matched and temporary output was cleaned.
 See [the compact result](validation/host-macos-20261110.json). This is host
 coverage; no native WPS build or new console launch was performed in this run.
 
+The public GCC workflow subsequently flagged a potentially dangling reference
+in the initial menu-item test assertion. That assertion now copies the item by
+value; the production implementation and assertions are unchanged. The Mac
+suite passed again in 5.060 seconds with the same eight harnesses, 65,536 masks
+and 22 transaction cases. [The second result](validation/host-macos-20261110-02.json)
+records this rerun. The original imported test hash and this standalone delta
+are both retained in `SOURCE-MAPPING.json`; the public GCC check is a separate
+CI result.
+
 ## Retained source and console observations
 
 The earlier `src-423c3f8fca82` source and current `src-c7fb79bdbb79` source have the same seven production-input bodies after CRLF-to-LF normalization. Only Makefile and main.cpp line endings differ; the other five inputs are byte-identical. The current host runner additionally uses isolated temporary output and supports Mac/Linux compiler flags. This does not imply identical compiled bytes.

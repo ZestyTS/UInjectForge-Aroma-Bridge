@@ -110,7 +110,10 @@
       "path": "tests/gamepad_menu_transaction_tests.cpp",
       "uifPath": "tools/UInjectForge.AromaBridge.WiiU/tests/gamepad_menu_transaction_tests.cpp",
       "bytes": 9767,
-      "sha256": "0d063cc6626cafcb5c53cbf1c311e66fe70112832d87e00f49543c0bf2b9ec95"
+      "sha256": "0d063cc6626cafcb5c53cbf1c311e66fe70112832d87e00f49543c0bf2b9ec95",
+      "standaloneBytes": 9766,
+      "standaloneSha256": "02fb4c3b8984b680ea9b0366c823531c42e534a66ccb33ab641b5142e995eaab",
+      "standaloneChange": "Copy the initial menu-item assertion snapshot by value to avoid GCC -Wdangling-reference on the temporary lookup key; production behavior and assertions unchanged."
     },
     {
       "path": "tests/gamepad_profile_tests.cpp",
